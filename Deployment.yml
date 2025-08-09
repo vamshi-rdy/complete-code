@@ -6,17 +6,17 @@ metadata:             #  Metadata about the Deployment (like name, labels, annot
     app: nginx                # Key-value pairs used for identifying and grouping Kubernetes objects.
 spec:                         # The specification or "blueprint" of the desired state for the Deployment.
   replicas: 3                 # Number of desired pod replicas to run. Kubernetes will ensure that 3 Pods of the app are running at all times.
-  selector:
+  selector:                   # Tells the Deployment how to find which Pods it manages. Here, it looks for Pods with the label app: nginx . It must match the labels in the Pod template below.
     matchLabels:
       app: nginx
-  template:           # (Pod definition)
-    metadata:
+  template:                       # (Pod definition) Describes the pod specification that will be used to create Pods.
+    metadata:                     # Metadata (especially labels) for the Pods created by the Deployment. This must match the selector above so that the Deployment knows which Pods it owns.
       labels:
         app: nginx
-    spec:
+    spec:                         # Defines what containers the Pod will run, along with their configuration.
       containers:
-      - name: nginx
-        image: nginx:1.14.2
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 80
+      - name: nginx               # The name of the container inside the Pod. Used to reference the container in logs, monitoring, etc.
+        image: nginx:1.14.2       # The Docker image to use for the container.
+        imagePullPolicy: Always   # Tells Kubernetes when to pull the image.
+        ports:                    # Defines which port the container exposes internally.
+        - containerPort: 80       # means the application (NGINX) inside the container listens on port 80. This doesn't expose it to the outside world yet — you'd need a Service or Ingress for that.
