@@ -1,15 +1,15 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-  labels:
-    app: nginx
-spec:
-  replicas: 3
+apiVersion: apps/v1   # Specifies which version of the Kubernetes API you're using for this object. The API group and version for Deployments. Since Kubernetes v1.9+, Deployments fall under apps/v1.
+kind: Deployment      #  Defines the type of Kubernetes object. This is a Deployment object that manages ReplicaSets and ensures a desired number of pods are running.
+metadata:             #  Metadata about the Deployment (like name, labels, annotations, etc.).
+  name: nginx-deployment      # Unique name of the deployment within the namespace.
+  labels:                     # A label assigned to this Deployment. Labels help in selection, filtering, and organization.
+    app: nginx                # Key-value pairs used for identifying and grouping Kubernetes objects.
+spec:                         # The specification or "blueprint" of the desired state for the Deployment.
+  replicas: 3                 # Number of desired pod replicas to run. Kubernetes will ensure that 3 Pods of the app are running at all times.
   selector:
     matchLabels:
       app: nginx
-  template:
+  template:           # (Pod definition)
     metadata:
       labels:
         app: nginx
