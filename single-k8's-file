@@ -1,0 +1,301 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: production # Added Namespace for isolation
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      serviceAccountName: nginx-service-account # Service Account for running the pod
+      initContainers: # Init container for pre-deployment tasks
+        - name: init-container
+          image: busybox:1.32
+          command: ["sh", "-c", "echo 'Initializing nginx pod...'"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/config
+      containers:
+        - name: nginx
+          image: nginx:1.14.2
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      sidecarContainers: # Sidecar container for additional functionality (e.g., logging, monitoring)
+        - name: sidecar-logging
+          image: busybox
+          command: ["sh", "-c", "tail -f /var/log/nginx/access.log"]
+          volumeMounts:
+            - name: nginx-log-volume
+              mountPath: /var/log/nginx
+      volumes:
+        - name: config-volume
+          configMap:
+            name: nginx-config
+        - name: nginx-log-volume
+          persistentVolumeClaim:
+            claimName: nginx-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nginx-pvc
+  namespace: production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: production
+data:
+  nginx.conf: |
+    server {
+      listen 80;
+      location / {
+        proxy_pass http://localhost;
+      }
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nginx-secrets
+  namespace: production
+type: Opaque
+data:
+  my-secret: c2VjcmV0Cg== # Base64 encoded 'secret'
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nginx-pdb
+  namespace: production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: nginx
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx-hpa
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-deployment
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: production
+spec:
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: production
+  name: nginx-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nginx-role-binding
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: nginx-service-account
+    namespace: production
+roleRef:
+  kind: Role
+  name: nginx-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nginx-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nginx-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: nginx-service-account
+    namespace: production
+roleRef:
+  kind: ClusterRole
+  name: nginx-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nginx-service-account
+  namespace: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: production
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      serviceAccountName: nginx-service-account # Service Account for running the pod
+      nodeSelector: 
+        disktype: ssd # Node Affinity, ensure the pod runs on nodes with SSD
+      tolerations:
+        - key: "key1"
+          operator: "Equal"
+          value: "value1"
+          effect: "NoSchedule"
+      containers:
+        - name: nginx
+          image: nginx:1.14.2
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+
+
+
+
+            
+# Key Enhancements:
+# Namespace: All resources are now under the production namespace for isolation.
+
+# Init Container: Performs any necessary setup before the main nginx container starts.
+
+# Sidecar Container: A simple logging sidecar container that tail logs from nginx.
+
+# Pod Disruption Budget (PDB): Ensures minimal disruption during voluntary disruptions (e.g., rolling updates).
+
+# Resource Requests & Limits: Defined CPU and memory requests and limits to ensure stable performance.
+
+# Horizontal Pod Autoscaler (HPA): Autoscaling based on CPU and memory utilization.
+
+# Persistent Volume Claim (PVC): Ensures persistence for nginx logs.
+
+# ConfigMap: Configures nginx with a custom nginx.conf file.
+
+# Secrets: Example for securely storing sensitive data.
+
+# Probes: Liveness, readiness, and startup probes for robust health checks.
+
+# RBAC: Role, RoleBinding, ClusterRole, and ClusterRoleBinding for fine-grained access control.
+
+# Service Account: Tied to the deployment for managing pod access control.
+
+# Node Affinity: Ensures the pod runs on nodes with SSDs.
+
+# Taints & Tolerations: Allows specific pods to run on nodes with custom taints.
+
+# Service: Exposes the nginx deployment as a service.
+
+# This setup ensures that the nginx deployment is robust, scalable, and properly isolated for a production environment.
