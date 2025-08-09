@@ -1,0 +1,27 @@
+apiVersion: v1                     # v1 is used for core resources like Service, Pod, ConfigMap, etc.
+kind: Service                      # Declares the type of Kubernetes object.Service is used to expose a set of Pods over the network.
+metadata:                          # Metadata for the Service object (like name, labels, etc.)
+  name: my-service                 # Unique name for the Service object in the namespace. This name is used for DNS (e.g., other Pods can access this service at my-service).
+  labels:                          # Optional labels used to organize and select resources.These do not affect routing, but help in categorizing resources.  
+     app: nginx         
+spec:                              # The specification or configuration of the Service.
+  selector:                        # Defines which Pods the Service should send traffic to. Here, it looks for Pods that have the label app: nginx. This should match the labels in the Deployment's Pod template:
+    app: nginx
+  type: LoadBalancer               # specifies how the Service is exposed.ClusterIP: (default) Only accessible within the cluster.NodePort: Exposes service on each node’s IP at a static port.LoadBalancer: (used here) Provisions an external IP via the cloud provider (e.g., AWS, GCP, Azure) and routes traffic to the Service.In AWS, this will create an Elastic Load Balancer (ELB) automatically.
+  ports:                           # Defines the network ports and how traffic is forwarded.
+    - protocol: TCP                # Specifies the transport layer protocol. Common values are TCP and UDP. Most HTTP traffic uses TCP.
+      nodePort: 30036              # The port on the node (VM/EC2 instance) where the service is exposed.This is used only with NodePort and LoadBalancer service types.Optional when using LoadBalancer, but if defined, it lets you access the service at:http://<NodeIP>:30036 .In AWS, this is less relevant since LoadBalancer provides a DNS endpoint.This must be between 30000-32767 (the NodePort range).
+      port: 80                     # The port that the Service exposes to the outside world (or within the cluster, depending on type).Clients send traffic to this port.This is the Service port.
+      targetPort: 80               # The container port inside the Pod that receives the traffic.This is the port on the actual NGINX container (from the Deployment).Here, both port and targetPort are 80, meaning no port mapping is needed.
+
+
+
+# Flow of Traffic
+# Here’s how the traffic flows:
+
+# 1) User/Browser sends request to:  http://<External LoadBalancer IP>:80
+# 2) That hits the AWS Load Balancer, which routes traffic to the Service at port: 80.
+
+# 3) The Service forwards the request to one of the matched Pods (based on the selector app: nginx) at targetPort: 80
+
+# 4) The NGINX container handles the request.
