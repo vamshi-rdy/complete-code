@@ -1,77 +1,138 @@
-pipeline{
-    
+pipeline {
     agent any
-    parameters{
-    choice()
-    string()
-    string()
+
+    environment {
+        // Define environment variables
+        GITHUB_REPO = 'https://github.com/your-org/your-repo.git'
+        MAVEN_HOME = tool name: 'Maven 3', type: 'maven'
+        SONARQUBE_ENV = 'SonarQube' // Jenkins SonarQube server config name
+        S3_BUCKET = 'your-s3-bucket-name'
+        DOCKER_REGISTRY = 'your-dockerhub-or-ecr-repo'
+        IMAGE_NAME = 'your-app-name'
+        AWS_REGION = 'us-east-1'
+        EKS_CLUSTER_NAME = 'your-eks-cluster'
+        ECR_REGISTRY = 'your-account-id.dkr.ecr.us-east-1.amazonaws.com'
     }
-    
+
+    options {
+        skipDefaultCheckout()
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
     stages {
-        
-        stage('Git Checkout'){
-            
-            steps{
-                     
-                    git branch: 'main', url: 'https://github.com/vikash-kumar01/mrdevops_javaapplication.git'
+
+        stage('Checkout') {
+            steps {
+                git credentialsId: 'github-credentials-id', url: "${env.GITHUB_REPO}", branch: 'main'
             }
         }
-        stage('eks connect'){
-            
-            steps{
-                                           
-                    sh """
-                        aws configure set aws_access_key_id ''
-                        aws configure set aws_secret_access_key ''
-                        aws configure set region ''
-                        aws eks --region ${params.region} update-kubeconfig --name ${params.cluster}
-                        """;
-            }
-        }
-        stage('Integration testing'){
-            
-            steps{
-                
-                script{
-                    
-                    sh 'mvn verify -DskipUnitTests'
+
+        stage('Build & Package with Maven') {
+            steps {
+                withMaven(maven: 'Maven 3') {
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
-        stage('Maven build'){
-            
-            steps{
-                
-                script{
-                    
-                    sh 'mvn clean install'
-                }
-            }
-        }
-        stage('Static code analysis'){
-            
-            steps{
-                
-                script{
-                    
-                    withSonarQubeEnv(credentialsId: 'sonar-api') {
-                        
-                        sh 'mvn clean package sonar:sonar'
-                    }
-                   }
-                    
-                }
-            }
-            stage('Quality Gate Status'){
-                
-                steps{
-                    
-                    script{
-                        
-                        waitForQualityGate abortPipeline: false, credentialsId: 'sonar-api'
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv("${env.SONARQUBE_ENV}") {
+                    withMaven(maven: 'Maven 3') {
+                        sh 'mvn sonar:sonar'
                     }
                 }
             }
         }
-        
+
+        stage('Wait for SonarQube Quality Gate') {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to SonarQube quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Upload Artifact to S3') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials-id'
+                ]]) {
+                    script {
+                        def artifact = sh(script: "ls target/*.jar | head -1", returnStdout: true).trim()
+                        sh "aws s3 cp ${artifact} s3://${S3_BUCKET}/artifacts/ --region ${AWS_REGION}"
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
+                }
+            }
+        }
+
+        stage('Push Docker Image to ECR') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials-id'
+                ]]) {
+                    script {
+                        sh """
+                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                            docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${ECR_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}
+                            docker push ${ECR_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Scan Docker Image') {
+            steps {
+                // Using Trivy for image scanning
+                sh """
+                    trivy image --exit-code 1 --severity CRITICAL,HIGH ${ECR_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}
+                """
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials-id'
+                ]]) {
+                    script {
+                        sh """
+                            aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                            kubectl set image deployment/${IMAGE_NAME} ${IMAGE_NAME}=${ECR_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} --record
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Build, analysis, deployment all succeeded.'
+        }
+        failure {
+            echo 'Pipeline failed.'
+        }
+    }
 }
