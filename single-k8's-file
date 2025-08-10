@@ -15,32 +15,32 @@ spec:
       labels:
         app: nginx
     spec:
-      serviceAccountName: nginx-service-account # Service Account for running the pod
-      initContainers: # Init container for pre-deployment tasks
-        - name: init-container
-          image: busybox:1.32
-          command: ["sh", "-c", "echo 'Initializing nginx pod...'"]
-          volumeMounts:
+      serviceAccountName: nginx-service-account # Service Account for running the pod   # Defines the pod's configuration.
+      initContainers: # Init container for pre-deployment tasks. Defines an initialization container that runs before the main nginx container starts.
+        - name: init-container  
+          image: busybox:1.32                                              # Uses busybox:1.32 for running a simple shell command.
+          command: ["sh", "-c", "echo 'Initializing nginx pod...'"]        # Runs a shell command to print an initialization message.
+          volumeMounts:                                                    # Mounts a volume (config-volume) to /etc/nginx/config in the init container, which could be useful for configuration-related tasks.
             - name: config-volume
               mountPath: /etc/nginx/config
-      containers:
-        - name: nginx
-          image: nginx:1.14.2
-          ports:
+      containers:                                                          # The main containers for the pod.
+        - name: nginx                                                      # The container name is nginx.
+          image: nginx:1.14.2                                              # Uses the nginx:1.14.2 image.
+          ports:                                                           # Exposes port 80 on the container.
             - containerPort: 80
-          resources:
-            requests:
+          resources:                                                       # Specifies resource requests and limits for the container.
+            requests:                                                      # Minimum resources required for the container (512Mi of memory and 500m CPU).
               memory: "512Mi"
               cpu: "500m"
-            limits:
+            limits:                                                        # Maximum resources the container can consume (1Gi of memory and 1 CPU).
               memory: "1Gi"
               cpu: "1"
-          livenessProbe:
-            httpGet:
-              path: /healthz
+          livenessProbe:                                                   # A health check to determine if the container is still running and healthy.
+            httpGet:                                                       # Sends an HTTP GET request to /healthz on port 80.
+              path: /healthz                                               
               port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            initialDelaySeconds: 5                                         # Waits for 5 seconds before starting the probe.
+            periodSeconds: 10                                              # Runs the probe every 10 seconds.
           readinessProbe:
             httpGet:
               path: /healthz
