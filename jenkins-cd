@@ -137,7 +137,72 @@ pipeline {
     }
 }
 
+# Using manifest # :
+stage('Deploy to EKS') {
+    steps {
+        withCredentials([[
+            $class: 'AmazonWebServicesCredentialsBinding',
+            credentialsId: 'aws-credentials-id'
+        ]]) {
+            script {
+                // Optional: update image tag in YAML
+                sh "sed -i 's|IMAGE_TAG_PLACEHOLDER|${BUILD_NUMBER}|' k8s/deployment.yaml"
 
+                // Apply manifests
+                sh """
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                    kubectl apply -f k8s/
+                """
+            }
+        }
+    }
+}
+
+
+
+ What real projects actually do
+Real-world Spring Boot deployments to EKS usually follow one of these patterns:
+
+1. CI/CD Pipeline: kubectl apply -f (Common)
+Jenkins (or GitHub Actions/GitLab CI) pipeline includes:
+
+bash
+Copy
+Edit
+kubectl apply -f k8s/deployment.yaml
+Where deployment.yaml includes the full definition of your app: deployment, service, ingress, etc.
+
+You may also dynamically update the image tag in deployment.yaml before applying (e.g., using sed or Helm templating).
+
+2. Helm Charts (Popular for parameterization)
+Instead of raw YAML, use Helm for templating:
+
+bash
+Copy
+Edit
+helm upgrade --install your-app ./chart --set image.tag=${BUILD_NUMBER}
+This is more robust for large projects.
+
+3. GitOps (ArgoCD, FluxCD)
+CI pipeline just pushes the updated YAML (or Helm values) to a Git repo, and ArgoCD/Flux automatically applies it to the cluster.
+
+This is considered the most production-grade approach today.
+
+🔐 Regarding aws eks update-kubeconfig
+In CI/CD, you might run it once in the pipeline to configure kubectl context, but in secure environments:
+
+Use a preconfigured Kubernetes context via a service account
+
+Or better, use IAM roles for service accounts (IRSA) with restricted permissions
+
+Avoid using full aws eks update-kubeconfig in pipelines unless needed temporarily
+
+Optional Enhancements
+Use Kustomize if you have overlays for dev/staging/prod
+
+Use Helm for reusable charts
+
+Avoid dynamic YAML manipulation with sed — instead, template it with Helm or use GitOps
 
 
 🔐 Security Best Practices Implemented
