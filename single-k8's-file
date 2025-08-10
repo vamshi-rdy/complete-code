@@ -41,51 +41,51 @@ spec:
               port: 80
             initialDelaySeconds: 5                                         # Waits for 5 seconds before starting the probe.
             periodSeconds: 10                                              # Runs the probe every 10 seconds.
-          readinessProbe:
+          readinessProbe:                                                  # Ensures that the container is ready to serve traffic. Similar to the liveness probe, but used to determine if the container is ready.
             httpGet:
               path: /healthz
               port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          startupProbe:
+            initialDelaySeconds: 5                                        # Waits for 5 seconds before starting the probe.
+            periodSeconds: 10                                             # Runs the probe every 10 seconds.
+          startupProbe:                                                   # Ensures the container has started successfully before performing liveness or readiness checks.
             httpGet:
               path: /healthz
               port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 5
-      sidecarContainers: # Sidecar container for additional functionality (e.g., logging, monitoring)
-        - name: sidecar-logging
-          image: busybox
-          command: ["sh", "-c", "tail -f /var/log/nginx/access.log"]
-          volumeMounts:
+            initialDelaySeconds: 10                                       # Waits for 10 seconds before starting the probe.
+            periodSeconds: 5                                              # Runs the probe every 5 seconds.
+      sidecarContainers:                       # Sidecar container for additional functionality (e.g., logging, monitoring) .Adds a sidecar container that runs alongside the main nginx container.
+        - name: sidecar-logging       
+          image: busybox                                                  # Uses busybox to run a shell command.
+          command: ["sh", "-c", "tail -f /var/log/nginx/access.log"]      # Tails the nginx access log in real-time (tail -f).
+          volumeMounts:                                                   # Mounts a volume (nginx-log-volume) to /var/log/nginx for accessing logs.
             - name: nginx-log-volume
               mountPath: /var/log/nginx
-      volumes:
+      volumes:                                                            # Defines volumes to be used by the containers.
         - name: config-volume
-          configMap:
+          configMap:                                                       # Mounts a ConfigMap called nginx-config to provide the Nginx configuration.
             name: nginx-config
-        - name: nginx-log-volume
+        - name: nginx-log-volume                                           # Uses a Persistent Volume Claim (nginx-pvc) for persistent storage of logs.
           persistentVolumeClaim:
             claimName: nginx-pvc
 ---
-apiVersion: v1
+apiVersion: v1                                                    # v1, indicating it's a core Kubernetes API resource.
 kind: PersistentVolumeClaim
-metadata:
+metadata:                                                         # Defines the nginx-pvc claim in the production namespace.
   name: nginx-pvc
   namespace: production
-spec:
+spec:                                                            # Requests a persistent volume of 1Gi, with access mode ReadWriteOnce (the volume can only be mounted by a single pod for read and write).
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
 ---
-apiVersion: v1
-kind: ConfigMap
+apiVersion: v1                                                  # v1 (core Kubernetes resource).
+kind: ConfigMap                                                 # ConfigMap, a Kubernetes object for storing configuration data.
 metadata:
   name: nginx-config
   namespace: production
-data:
+data:                                                           # Contains the nginx.conf file that configures Nginx to listen on port 80 and proxy requests to localhost.
   nginx.conf: |
     server {
       listen 80;
@@ -95,50 +95,50 @@ data:
     }
 ---
 apiVersion: v1
-kind: Secret
+kind: Secret                                                   # Secret, a Kubernetes object for storing sensitive data.
 metadata:
   name: nginx-secrets
   namespace: production
 type: Opaque
-data:
+data:                                                         # Stores the base64-encoded string secret.
   my-secret: c2VjcmV0Cg== # Base64 encoded 'secret'
 ---
-apiVersion: policy/v1
-kind: PodDisruptionBudget
+apiVersion: policy/v1                                         # policy/v1 (for disruption control).
+kind: PodDisruptionBudget                                     # PDB to control voluntary disruptions (e.g., rolling updates).
 metadata:
   name: nginx-pdb
   namespace: production
 spec:
-  minAvailable: 2
+  minAvailable: 2                                             # Ensures that at least 2 pods are available during disruptions.Helps with HA (high availability).
   selector:
     matchLabels:
       app: nginx
 ---
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2                   # Specifies the version of the Kubernetes API used.is a newer API version that supports multiple metrics, such as CPU, memory, custom metrics, and external metrics.
+kind: HorizontalPodAutoscaler                # Declares the resource type.HorizontalPodAutoscaler is used to automatically scale the number of pods in a deployment (or other scalable resource) based on defined metrics.
 metadata:
-  name: nginx-hpa
-  namespace: production
+  name: nginx-hpa                            # The name of the HPA object (used by Kubernetes to identify the HPA).
+  namespace: production                      # The HPA is scoped to the production namespace, ensuring it only affects resources in that namespace.
 spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: nginx-deployment
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-    - type: Resource
-      resource:
+  scaleTargetRef:                           # Points to the target resource to be scaled.
+    apiVersion: apps/v1                     # The API version of the target resource.
+    kind: Deployment                        # The type of resource to scale.
+    name: nginx-deployment                  # The name of the specific deployment.
+  minReplicas: 3                            # The minimum number of pods that should run, even if usage is low.Helps maintain baseline availability or performance.
+  maxReplicas: 10                           # The upper limit of pods that can be created.Prevents over-scaling and excessive resource consumption.
+  metrics:                                  # List of scaling metrics.
+    - type: Resource                        # We're scaling based on a resource usage metric (CPU here).
+      resource:                             # The specific resource being tracked.
         name: cpu
-        target:
+        target:                             # We're measuring the percentage of requested CPU being used.
           type: Utilization
-          averageUtilization: 80
-    - type: Resource
+          averageUtilization: 80            # The target is 80% of requested CPU across all pods. If CPU usage goes above 80%, more pods will be added. If it stays well below 80%, pods may be scaled down (not below 3 because of minReplicas).
+    - type: Resource                        # A second metric, similar to the first but for memory.Kubernetes will now scale based on the higher need: either CPU or memory.
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80
+          averageUtilization: 80            # Whichever metric hits the threshold first will trigger scaling. For example:If CPU is at 60% but memory is at 85%, the HPA will scale up to try to bring memory usage down to 80%.
 ---
 apiVersion: v1
 kind: Service
