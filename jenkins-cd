@@ -136,3 +136,36 @@ pipeline {
         }
     }
 }
+
+
+
+
+🔐 Security Best Practices Implemented
+No secrets hardcoded: Uses Jenkins credential IDs (aws-credentials-id, github-credentials-id)
+
+Minimal privilege: Ensure IAM user/role associated with aws-credentials-id has least privilege
+
+Static analysis enforced: SonarQube quality gate enforced with hard fail
+
+Image scanning required: Using Trivy, fails build on critical/high vulnerabilities
+
+Clean workspace: Cleans up at end of pipeline
+
+✅ Tools Assumptions
+Jenkins has plugins installed:
+
+Maven Integration
+
+SonarQube Scanner
+
+AWS CLI/SDK
+
+Docker Pipeline
+
+Trivy installed on agent (can use a container agent as well)
+
+Jenkins credentials configured:
+
+GitHub access: github-credentials-id
+
+AWS credentials: aws-credentials-id
