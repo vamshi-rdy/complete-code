@@ -140,64 +140,64 @@ spec:
           type: Utilization
           averageUtilization: 80            # Whichever metric hits the threshold first will trigger scaling. For example:If CPU is at 60% but memory is at 85%, the HPA will scale up to try to bring memory usage down to 80%.
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx-service
-  namespace: production
-spec:
-  selector:
+apiVersion: v1                            # This specifies the API version used for the resource, in this case, it's a Service, which uses the v1 API version.
+kind: Service                             # The kind of resource is a Kubernetes service.
+metadata:                                 # Contains metadata about the service
+  name: nginx-service                     # The name of the service is nginx-service.
+  namespace: production                   # This service will exist within the production namespace.
+spec:                                     # Specifies the configuration of the service:
+  selector:                               # The service will route traffic to pods with the label app: nginx.
     app: nginx
-  ports:
-    - protocol: TCP
+  ports:                                  # This section defines the ports that the service will expose:
+    - protocol: TCP                       # The service will expose TCP port 80, and it will forward that to port 80 on the pods.
       port: 80
       targetPort: 80
-  type: ClusterIP
+  type: ClusterIP                         # This service is of type ClusterIP, which means it can only be accessed internally within the Kubernetes cluster.
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+apiVersion: rbac.authorization.k8s.io/v1               # Specifies the API version for Role-based Access Control (RBAC) resources.
+kind: Role                                             # The kind of resource is a Role, which defines permissions within a specific namespace (production).
 metadata:
-  namespace: production
-  name: nginx-role
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch"]
+  namespace: production                                # The role will be created in the production namespace.
+  name: nginx-role                                     #  The role is named nginx-role.
+rules:                                                 # Defines the permissions associated with this role:
+  - apiGroups: [""]                                    # This targets the core API group, which includes resources like pods.
+    resources: ["pods"]                                # The role grants permissions on the pods resource.
+    verbs: ["get", "list", "watch"]                    # The allowed actions (verbs) on pods are get, list, and watch. This means the role can read information about pods but cannot modify them.
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1               # The API version for RBAC resources.
+kind: RoleBinding                                      # A RoleBinding grants the permissions defined in a Role to a user or service account.
 metadata:
   name: nginx-role-binding
   namespace: production
-subjects:
-  - kind: ServiceAccount
+subjects:                                             #  This section lists the entities (like users or service accounts) that will be granted the permissions from the role:
+  - kind: ServiceAccount                              # The subject is a ServiceAccount named nginx-service-account in the production namespace.
     name: nginx-service-account
     namespace: production
-roleRef:
-  kind: Role
-  name: nginx-role
-  apiGroup: rbac.authorization.k8s.io
+roleRef:                                             # Refers to the Role that defines the permissions:
+  kind: Role                                         # Refers to the role type
+  name: nginx-role                                   # The role being referenced.
+  apiGroup: rbac.authorization.k8s.io                # Specifies the API group for RBAC.
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1             # The API version for RBAC resources.
+kind: ClusterRole               # A Cluster role is similar to a Role but applies across the entire k8's cluster (not limited to specific namespace)
 metadata:
-  name: nginx-cluster-role
+  name: nginx-cluster-role      # The name of the ClusterRole is nginx-cluster-role.
 rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]                            # Specifies the permissions for the ClusterRole:
+    resources: ["pods"]                        # Permissions are granted on the pods resource.
+    verbs: ["get", "list", "watch"]            # These verbs allow reading information about pods. 
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1       # The API version for RBAC resources.
+kind: ClusterRoleBinding                       # A ClusterRoleBinding binds a ClusterRole to a subject, such as a service account.
 metadata:
-  name: nginx-cluster-role-binding
-subjects:
-  - kind: ServiceAccount
+  name: nginx-cluster-role-binding             # The name of the ClusterRoleBinding is nginx-cluster-role-binding.
+subjects:                                      # The subject receiving the ClusterRole permissions:
+  - kind: ServiceAccount                       # Referring to the service account named nginx-service-account in the production namespace.
     name: nginx-service-account
     namespace: production
-roleRef:
-  kind: ClusterRole
-  name: nginx-cluster-role
+roleRef:                                       # Refers to the ClusterRole being granted:
+  kind: ClusterRole                            # Refers to the ClusterRole type.
+  name: nginx-cluster-role                     # The name of the ClusterRole being referenced.
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1
@@ -207,55 +207,55 @@ metadata:
   namespace: production
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: Deployment          # A Kubernetes Deployment is used to manage a set of replicated pods.
 metadata:
-  name: nginx-deployment
-  namespace: production
-  labels:
+  name: nginx-deployment    
+  namespace: production    # The deployment is created in the production namespace.
+  labels:                  # The deployment has the label app: nginx, which is used for identifying resources related to the nginx application.
     app: nginx
-spec:
-  replicas: 3
-  selector:
+spec:                      # The spec under the Pod template defines how each Pod should behave.
+  replicas: 3              # The deployment will maintain 3 replicas of the nginx pod.
+  selector:                # The deployment selects pods with the label app: nginx.
     matchLabels:
       app: nginx
-  template:
+  template:            # Defines the pod template:
     metadata:
       labels:
         app: nginx
     spec:
-      serviceAccountName: nginx-service-account # Service Account for running the pod
-      nodeSelector: 
+      serviceAccountName: nginx-service-account         # Service Account for running the pod. The service account nginx-service-account is used by the pods in the deployment.
+      nodeSelector:                                     # Ensures that the pods run on nodes with a label `disktype:
         disktype: ssd # Node Affinity, ensure the pod runs on nodes with SSD
-      tolerations:
+      tolerations:                                      # Allows the Pod to be scheduled on nodes tainted with key1=value1:NoSchedule.Without this, the Pod would be unschedulable on such nodes
         - key: "key1"
           operator: "Equal"
           value: "value1"
           effect: "NoSchedule"
-      containers:
+      containers:                                     # Container runs nginx:1.14.2 and listens on port 80.
         - name: nginx
           image: nginx:1.14.2
           ports:
             - containerPort: 80
-          resources:
+          resources:                    # Specifies resource requests and limits to help with scheduling and quota enforcement.
             requests:
               memory: "512Mi"
               cpu: "500m"
             limits:
               memory: "1Gi"
               cpu: "1"
-          livenessProbe:
+          livenessProbe:                # Checks if the app is still running. Kills and restarts it if it fails.
+            httpGet:                    # Type of probe.Specifies that the liveness probe will perform an HTTP GET request to check if the app is healthy.Other types could be:exec: Run a command inside the container,tcpSocket: Try connecting to a TCP port.
+              path: /healthz            # URL path to probe.The HTTP request will be sent to the path /healthz of the container's web server.The container must serve this endpoint and return a 2xx status code to be considered healthy.
+              port: 80                  # The probe will connect to port 80 on the container to send the HTTP request.This should match a port exposed by the container.
+            initialDelaySeconds: 5      # Wait before first probe.Kubernetes waits 5 seconds after the container starts before performing the first liveness check.This gives the application time to start up.
+            periodSeconds: 10           # Frequency of checks.Kubernetes will run the probe every 10 seconds after the initial delay.If the probe fails too many times consecutively (default: 3), the container is restarted.
+          readinessProbe:               # Determines when the container is ready to accept traffic.
             httpGet:
               path: /healthz
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          startupProbe:
+          startupProbe:                 # Used during startup. Prevents premature liveness probe failures.
             httpGet:
               path: /healthz
               port: 80
@@ -299,3 +299,21 @@ spec:
 # Service: Exposes the nginx deployment as a service.
 
 # This setup ensures that the nginx deployment is robust, scalable, and properly isolated for a production environment.
+
+
+Summary of What This File Does:
+Creates a Service to expose the NGINX pods internally.
+
+Defines RBAC roles and bindings for a service account.
+
+Sets up a Deployment of NGINX pods with resource limits, health checks, node selection, and taint tolerations.
+
+Uses Startup, Liveness, and Readiness probes for reliability.
+
+Separates access control using Role (namespace level) and ClusterRole (cluster-wide).
+
+Let me know if you want this visualized, simplified, or converted into Helm or Kustomize format.
+
+
+Example Use Case:
+Imagine your NGINX or web app can crash silently (it’s running, but non-functional). The liveness probe helps automatically recover from this situation by restarting the broken container.
