@@ -7,6 +7,11 @@ metadata:
     app: nginx
 spec:
   replicas: 3
+  strategy:                            # 👈 Added strategy block. You don’t need to set strategy manually unless you want to tune how Pods are updated — Kubernetes uses RollingUpdate by default.
+    type: RollingUpdate                # Tells Kubernetes to use a rolling update strategy (default).
+    rollingUpdate:
+      maxSurge: 1                      #  Allows one extra Pod to be created (beyond desired replicas) during the update.You can set maxSurge and maxUnavailable as percentages as well:maxSurge: 25%,maxUnavailable: 25%.
+      maxUnavailable: 1                #  Allows one Pod to be unavailable during the update.
   selector:
     matchLabels:
       app: nginx
