@@ -5,20 +5,20 @@ pipeline {
         // Define environment variables
         GITHUB_REPO = 'https://github.com/your-org/your-repo.git'
         MAVEN_HOME = tool name: 'Maven 3', type: 'maven'
-        SONARQUBE_ENV = 'SonarQube' // Jenkins SonarQube server config name
-        S3_BUCKET = 'your-s3-bucket-name'
-        DOCKER_REGISTRY = 'your-dockerhub-or-ecr-repo'
+        //SONARQUBE_ENV = 'SonarQube' // Jenkins SonarQube server config name
+        //S3_BUCKET = 'your-s3-bucket-name'
+        //DOCKER_REGISTRY = 'your-dockerhub-or-ecr-repo'
         IMAGE_NAME = 'your-app-name'
-        AWS_REGION = 'us-east-1'
-        EKS_CLUSTER_NAME = 'your-eks-cluster'
+        //AWS_REGION = 'us-east-1'
+        //EKS_CLUSTER_NAME = 'your-eks-cluster'
         ECR_REGISTRY = 'your-account-id.dkr.ecr.us-east-1.amazonaws.com'
     }
 
-    options {
-        skipDefaultCheckout()
-        timestamps()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-    }
+    //options {
+        //skipDefaultCheckout()
+        //timestamps()
+        //buildDiscarder(logRotator(numToKeepStr: '10'))
+    //}
 
     stages {
 
