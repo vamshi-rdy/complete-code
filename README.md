@@ -1,6 +1,9 @@
 # complete-code
 all files code
 
+Jenkins Plugins Installed:
+  a) Git , Docker, Docker pipeline, Sonarqube
+
 NODE AFFINITY,POD AFFINITY , TAINTS & TOLERATIONS :
 
 🔶 1. Node Affinity
